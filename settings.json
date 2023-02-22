@@ -1,0 +1,13 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder}/optee_examples/OPTEE_my_module",
+    "C_Cpp.errorSquiggles": "enabled",
+    "C_Cpp.default.cStandard": "c17",
+    "C_Cpp.default.cppStandard": "c++20",
+    "C_Cpp.default.intelliSenseMode": "linux-gcc-arm",
+    "files.associations": {
+        "tee_tcpsocket.h": "c",
+        "tee_internal_api.h": "c",
+        "compiler.h": "c",
+        "tee_api_defines.h": "c"
+    }
+}

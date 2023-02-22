@@ -13,10 +13,16 @@ int main(void){
 	TEEC_UUID uuid = MY_MODULE_UUID;
 	uint32_t err_origin;
 
+	TEEC_SharedMemory shared_mem;
+	shared_mem.size = SHARED_MEM_SIZE;
+	shared_mem.flags = TEEC_MEM_INPUT | TEEC_MEM_OUTPUT;
+
     /* Initialize a context connecting us to the TEE */
 	res = TEEC_InitializeContext(NULL, &ctx);
 	if (res != TEEC_SUCCESS)
 		errx(1, "TEEC_InitializeContext failed with code 0x%x", res);
+
+	res = TEEC_AllocateSharedMemory(&ctx, &shared_mem);
 
 	/*
 	 * Open a session to the "hello world" TA, the TA will print "hello
@@ -43,21 +49,27 @@ int main(void){
 	 * Prepare the argument. Pass a value in the first parameter,
 	 * the remaining three parameters are unused.
 	 */
-	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INOUT, TEEC_NONE,
+	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INOUT, TEEC_MEMREF_PARTIAL_INOUT,
 					 TEEC_NONE, TEEC_NONE);
 	op.params[0].value.a = 42;
+	
+	op.params[1].memref.parent = &shared_mem;
+	op.params[1].memref.offset = 0;
+	op.params[1].memref.size = SHARED_MEM_SIZE;
+
 
 	/*
 	 * TA_HELLO_WORLD_CMD_INC_VALUE is the actual function in the TA to be
 	 * called.
 	 */
 	printf("Invoking TA to increment %d\n", op.params[0].value.a);
-	res = TEEC_InvokeCommand(&sess, TA_HELLO_WORLD_CMD_INC_VALUE, &op,
+	res = TEEC_InvokeCommand(&sess, TA_HELLO_WORLD_CMD_WRITE_HW, &op,
 				 &err_origin);
 	if (res != TEEC_SUCCESS)
 		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
 			res, err_origin);
 	printf("TA incremented value to %d\n", op.params[0].value.a);
+	printf("TA writed : %s", shared_mem.buffer);
 
 	/*
 	 * We're done with the TA, close the session and

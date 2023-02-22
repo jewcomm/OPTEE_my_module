@@ -8,5 +8,8 @@
 /* The function IDs implemented in this TA */
 #define TA_HELLO_WORLD_CMD_INC_VALUE		0
 #define TA_HELLO_WORLD_CMD_DEC_VALUE		1
+#define TA_HELLO_WORLD_CMD_WRITE_HW         3
+
+#define SHARED_MEM_SIZE  64
 
 #endif

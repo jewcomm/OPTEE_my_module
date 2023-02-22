@@ -1,7 +1,14 @@
 #include <tee_internal_api.h>
 #include <tee_internal_api_extensions.h>
+#include <tee_isocket.h>
+#include <tee_tcpsocket.h>
 
 #include <my_module_ta.h>
+#include <string.h>
+
+#define __maybe_unused  __attribute__((unused))
+
+extern TEE_iSocket * const TEE_tcpSocket;
 
 /*
  * Called when the instance of the TA is created. This is the first call in
@@ -106,6 +113,40 @@ static TEE_Result dec_value(uint32_t param_types,
 
 	return TEE_SUCCESS;
 }
+
+static TEE_Result write_hw_sh(uint32_t param_types,
+	TEE_Param params[4])
+{
+		uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
+						   TEE_PARAM_TYPE_MEMREF_INOUT,
+						   TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE);
+
+	DMSG("has been called write hello world module");
+
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	if (param_types != exp_param_types)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	char msg[] = "Hello World!\0";
+
+	TEE_MemMove(params[1].memref.buffer, msg, strlen(msg));
+
+	TEE_iSocketHandle handle;
+	TEE_iSocket *socket;
+	TEE_tcpSocket_Setup setup = { };
+	setup.ipVersion = TEE_IP_VERSION_4;
+	setup.server_port = 3000;
+	setup.server_addr = "127.0.0.1";
+	uint32_t protError;
+
+	socket = TEE_tcpSocket;
+	res = socket->open(&handle, &setup, &protError);
+	DMSG("Try connection return: %i	protocol error: %i", res, protError);
+
+	return res;
+}
 /*
  * Called when a TA is invoked. sess_ctx hold that value that was
  * assigned by TA_OpenSessionEntryPoint(). The rest of the paramters
@@ -122,6 +163,8 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 		return inc_value(param_types, params);
 	case TA_HELLO_WORLD_CMD_DEC_VALUE:
 		return dec_value(param_types, params);
+	case TA_HELLO_WORLD_CMD_WRITE_HW:
+		return write_hw_sh(param_types, params);
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
