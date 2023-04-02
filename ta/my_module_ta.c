@@ -2,13 +2,17 @@
 #include <tee_internal_api_extensions.h>
 #include <tee_isocket.h>
 #include <tee_tcpsocket.h>
+#include <tee_udpsocket.h>
 
 #include <my_module_ta.h>
 #include <string.h>
 
 #define __maybe_unused  __attribute__((unused))
 
-extern TEE_iSocket * const TEE_tcpSocket;
+//extern TEE_iSocket * const TEE_tcpSocket;
+//extern TEE_iSocket * const TEE_udpSocket;
+
+void resultAndErrorToDMSG(uint32_t result, uint32_t error);
 
 /*
  * Called when the instance of the TA is created. This is the first call in
@@ -74,51 +78,11 @@ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
 	IMSG("Goodbye!\n");
 }
 
-static TEE_Result inc_value(uint32_t param_types,
-	TEE_Param params[4])
-{
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
-
-	DMSG("has been called");
-
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
-
-	IMSG("Got value: %u from NW", params[0].value.a);
-	params[0].value.a++;
-	IMSG("Increase value to: %u", params[0].value.a);
-
-	return TEE_SUCCESS;
-}
-
-static TEE_Result dec_value(uint32_t param_types,
-	TEE_Param params[4])
-{
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
-
-	DMSG("has been called");
-
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
-
-	IMSG("Got value: %u from NW", params[0].value.a);
-	params[0].value.a--;
-	IMSG("Decrease value to: %u", params[0].value.a);
-
-	return TEE_SUCCESS;
-}
-
 static TEE_Result write_hw_sh(uint32_t param_types,
 	TEE_Param params[4])
 {
-		uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_MEMREF_INOUT,
+		uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
 
@@ -131,11 +95,33 @@ static TEE_Result write_hw_sh(uint32_t param_types,
 
 	char msg[] = "Hello World!\0";
 
-	TEE_MemMove(params[1].memref.buffer, msg, strlen(msg));
-
 	TEE_iSocketHandle handle;
-	TEE_iSocket *socket;
-	TEE_tcpSocket_Setup setup = { };
+	//TEE_iSocket *socket;
+	TEE_udpSocket_Setup setup = {};
+	setup.ipVersion = TEE_IP_VERSION_4;
+	setup.server_port = 3000;
+	char * addr = "192.168.1.70";
+	setup.server_addr = addr;
+	
+	uint32_t protError;
+
+	//socket = TEE_udpSocket;
+
+	int counter = 10;
+
+	char * buff = "22";
+	uint32_t len = 3;
+
+	res = TEE_tcpSocket->open(&handle, &setup, &protError);
+	DMSG("Try connection return");
+	resultAndErrorToDMSG(res, protError);
+	DMSG("");
+
+	res = TEE_tcpSocket->send(&handle, (const void *)buff, &len, 0);
+	DMSG("Try send return");
+	resultAndErrorToDMSG(res, protError);
+	DMSG("");
+/*	TEE_tcpSocket_Setup setup = { };
 	setup.ipVersion = TEE_IP_VERSION_4;
 	setup.server_port = 3000;
 	setup.server_addr = "127.0.0.1";
@@ -143,7 +129,7 @@ static TEE_Result write_hw_sh(uint32_t param_types,
 
 	socket = TEE_tcpSocket;
 	res = socket->open(&handle, &setup, &protError);
-	DMSG("Try connection return: %i	protocol error: %i", res, protError);
+	DMSG("Try connection return: %i	protocol error: %i", res, protError);*/
 
 	return res;
 }
@@ -159,13 +145,59 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 	(void)&sess_ctx; /* Unused parameter */
 
 	switch (cmd_id) {
-	case TA_HELLO_WORLD_CMD_INC_VALUE:
-		return inc_value(param_types, params);
-	case TA_HELLO_WORLD_CMD_DEC_VALUE:
-		return dec_value(param_types, params);
 	case TA_HELLO_WORLD_CMD_WRITE_HW:
 		return write_hw_sh(param_types, params);
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
+}
+
+void resultAndErrorToDMSG(uint32_t result, uint32_t error){
+	switch (result)
+	{
+	case TEE_SUCCESS:
+		DMSG("Return TEE_SUCCESS");
+		break;
+	case TEE_ERROR_BAD_PARAMETERS:
+		DMSG("Return TEE_ERROR_BAD_PARAMETERS");
+		break;
+	case TEE_ERROR_COMMUNICATION:
+		DMSG("Return TEE_ERROR_COMMUNICATION");
+		break;
+	case TEE_ISOCKET_ERROR_TIMEOUT:
+		DMSG("Return TEE_ISOCKET_ERROR_TIMEOUT");
+		break;
+	default:
+		DMSG("Another return: %i", result);
+		break;
+	}
+
+	switch (error)
+	{
+	case TEE_ISOCKET_ERROR_PROTOCOL:
+		DMSG("TEE_ISOCKET_ERROR_PROTOCOL");
+		break;
+	case TEE_ISOCKET_ERROR_REMOTE_CLOSED:
+		DMSG("TEE_ISOCKET_ERROR_REMOTE_CLOSED");
+		break;
+	case TEE_ISOCKET_ERROR_TIMEOUT:
+		DMSG("TEE_ISOCKET_ERROR_TIMEOUT");
+		break;
+	case TEE_ISOCKET_ERROR_OUT_OF_RESOURCES:
+		DMSG("TEE_ISOCKET_ERROR_OUT_OF_RESOURCES");
+		break;		
+	case TEE_ISOCKET_ERROR_LARGE_BUFFER:
+		DMSG("TEE_ISOCKET_ERROR_LARGE_BUFFER");
+		break;	
+	case TEE_ISOCKET_WARNING_PROTOCOL:
+		DMSG("TEE_ISOCKET_WARNING_PROTOCOL");
+		break;
+	case TEE_ISOCKET_ERROR_HOSTNAME:
+		DMSG("TEE_ISOCKET_ERROR_HOSTNAME");
+		break;
+	default:
+		DMSG("Another return: %i", error);
+		break;
+	}
+
 }
